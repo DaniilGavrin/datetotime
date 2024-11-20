@@ -42,15 +42,15 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               CustomPaint(
                 size: Size(
-                  MediaQuery.of(context).size.width * 0.9, // 90% ширины экрана
-                  MediaQuery.of(context).size.height * 0.5, // 50% высоты экрана
+                  MediaQuery.of(context).size.width * 0.8,
+                  MediaQuery.of(context).size.width * 0.8,
                 ),
                 painter: ClockPainter(currentDay, lastDay),
               ),
               Positioned(
                 child: Text(
-                  '${progress.toStringAsFixed(1)}%',  // Процент прогресса месяца
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  '${progress.toStringAsFixed(1)}%',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
               ),
             ],
@@ -69,50 +69,62 @@ class ClockPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    Paint paint = Paint()
-      ..color = Colors.white.withOpacity(0.4)
+    final double radius = size.width / 2;
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final Paint paintCircle = Paint()
+      ..color = Colors.grey.withOpacity(0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
 
-    // Рисуем круг
-    canvas.drawCircle(Offset(size.width / 2, size.height / 2), size.width / 2, paint);
+    final Paint paintArrow = Paint()
+      ..color = Colors.blue
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
 
-    // Рисуем цифры по кругу
-    double angleStep = 2 * pi / lastDay;
+    // Draw outer circle
+    canvas.drawCircle(center, radius, paintCircle);
+
+    // Draw day numbers
+    final double angleStep = 2 * pi / lastDay;
+    final double numberRadius = radius - 20;
     for (int i = 1; i <= lastDay; i++) {
       double angle = angleStep * (i - 1);
-      double x = size.width / 2 + (size.width / 2 - 20) * cos(angle);
-      double y = size.height / 2 + (size.height / 2 - 20) * sin(angle);
-
-      // Определяем цвет цифры
-      Color numberColor = (i <= currentDay) ? Colors.grey : Colors.white;
+      double x = center.dx + numberRadius * cos(angle - pi / 2);
+      double y = center.dy + numberRadius * sin(angle - pi / 2);
 
       TextPainter textPainter = TextPainter(
         text: TextSpan(
           text: '$i',
-          style: TextStyle(fontSize: 16, color: numberColor),
+          style: TextStyle(
+            fontSize: 14,
+            color: i <= currentDay ? Colors.grey : Colors.white,
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, y - textPainter.height / 2));
+      textPainter.paint(
+        canvas,
+        Offset(x - textPainter.width / 2, y - textPainter.height / 2),
+      );
     }
 
-    // Рисуем стрелку, которая указывает на текущий день
-    double angle = (currentDay / lastDay) * 2 * pi; // Угол для стрелки
-    paint.color = Colors.blue;
-    paint.strokeWidth = 6;
+    // Draw progress arrow
+    final double progressAngle = (currentDay / lastDay) * 2 * pi - pi / 2;
+    final double arrowLength = radius - 30;
     canvas.drawLine(
-      Offset(size.width / 2, size.height / 2),
-      Offset(size.width / 2 + (size.width / 2 - 20) * cos(angle),
-             size.height / 2 + (size.height / 2 - 20) * sin(angle)),
-      paint,
+      center,
+      Offset(
+        center.dx + arrowLength * cos(progressAngle),
+        center.dy + arrowLength * sin(progressAngle),
+      ),
+      paintArrow,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
+  bool shouldRepaint(covariant ClockPainter oldDelegate) {
+    return currentDay != oldDelegate.currentDay || lastDay != oldDelegate.lastDay;
   }
 }
 
@@ -122,13 +134,12 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  // Список экранов, которые будут переключаться
   final List<Widget> _screens = [
-    HomeScreen(),  // Главный экран с часами
-    EventScreen(), // Экран для событий
+    HomeScreen(), // Main screen
+    EventScreen(), // Events screen
   ];
 
-  int _currentIndex = 0; // Индекс текущего экрана
+  int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -136,13 +147,34 @@ class _MainScreenState extends State<MainScreen> {
       appBar: AppBar(
         title: Text('Date to Time'),
       ),
-      body: _screens[_currentIndex], // Показываем текущий экран
+      body: _screens[_currentIndex],
+      floatingActionButton: _currentIndex == 1
+          ? FloatingActionButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) {
+                    return AlertDialog(
+                      title: Text('Добавить событие'),
+                      content: Text('Форма для добавления события.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text('Закрыть'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              child: Icon(Icons.add),
+            )
+          : null,
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed, // Для фиксированных кнопок
-        currentIndex: _currentIndex, // Текущий индекс
+        currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {
-            _currentIndex = index; // Переключаем экран
+            _currentIndex = index;
           });
         },
         items: const [
@@ -150,7 +182,6 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.home),
             label: 'Главная',
           ),
-          // Разделитель между кнопками
           BottomNavigationBarItem(
             icon: Icon(Icons.event),
             label: 'События',
@@ -165,16 +196,17 @@ class EventScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Список событий!',
-            style: TextStyle(fontSize: 24),
-          ),
-          // Здесь будет список событий или форма добавления событий
-        ],
+      child: Text(
+        'Список событий!',
+        style: TextStyle(fontSize: 24),
       ),
     );
   }
+}
+
+void main() {
+  runApp(MaterialApp(
+    theme: ThemeData.dark(),
+    home: MainScreen(),
+  ));
 }
